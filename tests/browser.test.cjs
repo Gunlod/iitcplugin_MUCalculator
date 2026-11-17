@@ -1,5 +1,5 @@
 'use strict';
-// Integration harness: real Chromium and Leaflet; IITC hooks/native bridge and API are fixtures.
+// Integration harness: real Chromium, Leaflet and IITC dialogs; hooks/native bridge and API are fixtures.
 // It does not simulate an authenticated Intel map or an Android WebView.
 const {test,before,after} = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,9 +11,9 @@ const source = fs.readFileSync(path.join(__dirname,'../iitc-plugin-mu-calculator
 const mobileTail = "script.appendChild(document.createTextNode('('+ wrapper +')('+JSON.stringify(info)+');'));\n(document.body || document.head || document.documentElement).appendChild(script);";
 let server,browser,origin;
 before(async()=>{
-  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/leaflet.css"><style>
-    body{margin:0;background:#071b23;color:white;font-family:sans-serif}#map{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,#ffffff08 40px),repeating-linear-gradient(90deg,#15323b,#15323b 39px,#ffffff10 40px)}#toolbox_component{position:absolute;right:8px;top:8px;z-index:1000;background:#102329;padding:12px}a{color:#ffc36b;cursor:pointer}.dialog-fixture{position:absolute;right:20px;top:60px;width:460px;z-index:1200;box-shadow:0 4px 20px #0007}.leaflet-container{font-family:sans-serif}
-    </style></head><body><div id="map"></div><div id="toolbox_component"></div><div id="toolbox"></div><script src="/leaflet.js"></script><script>
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/leaflet.css"><link rel="stylesheet" href="/jquery-ui.css"><link rel="stylesheet" href="/iitc-dialog.css"><style>
+    :root{--color-bg-trans:#102329;--color-bg-border:#20a8b1;--color-primary:#ffc400;--color-secondary:#fff}body{margin:0;background:#071b23;color:white;font-family:sans-serif}#map{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,#ffffff08 40px),repeating-linear-gradient(90deg,#15323b,#15323b 39px,#ffffff10 40px)}#toolbox_component{position:absolute;right:8px;top:8px;z-index:1000;background:#102329;padding:12px}a{color:#ffc36b;cursor:pointer}.ui-dialog .ui-dialog-titlebar{background:#073f4b;border:0;border-radius:0}.ui-dialog-titlebar-button .ui-icon,.ui-dialog-titlebar-button .ui-button-icon-space{display:none}.leaflet-container{font-family:sans-serif}
+    </style></head><body><div id="map"></div><div id="toolbox_component"></div><div id="toolbox"></div><script src="/leaflet.js"></script><script src="/jquery.js"></script><script src="/jquery-ui.js"></script><script>
     const params=new URLSearchParams(location.search), isMobile=params.has('mobile');
     window.hooks={};window.addHook=(name,fn)=>(hooks[name] ||= []).push(fn);window.runHooks=(name,data)=>(hooks[name]||[]).forEach(fn=>fn(data));
     window.currentPane='map';window.show=p=>{currentPane=p;runHooks('paneChanged',p)};
@@ -21,17 +21,24 @@ before(async()=>{
     window.portals={};window.exports=[];window.overlays=[];window.dialogCalls=0;
     window.IITC={utils:{isSmartphone:()=>isMobile,exportFile:(text,name,type)=>exports.push({text,name,type})},toolbox:{addButton:({id,label,action})=>{const a=document.createElement('a');a.id=id;a.textContent=label;a.onclick=action;document.getElementById('toolbox_component').append(a)}}};
     window.addLayerGroup=(name,layer,enabled)=>{overlays.push(layer);if(enabled)layer.addTo(map)};
-    window.dialog=options=>{dialogCalls++;const d=document.createElement('div');d.className='dialog-fixture';d.append(options.html);document.body.append(d);return {dialog:()=>{d.remove();options.closeCallback()}}};
+    window.log={debug(){},error:console.error};window.convertTextToTableMagic=text=>text;
     window.plugin=function(){};window.iitcLoaded=true;
     const points=[['a',35,135,'ポータル A'],['b',35.1,135.1,'ポータル B'],['c',35.2,135,'<img src=x onerror=alert(1)>'],['d',35.22,135,'ポータル D'],['e',35.24,135,'ポータル E'],['f',35.26,135,'ポータル F'],['g',35.28,135,'ポータル G']];
     for(const [guid,lat,lng,title] of points){const marker=L.circleMarker([lat,lng],{radius:8,color:'#bdf',fillOpacity:1}).addTo(map);marker.options.data={title};marker.on('click',event=>runHooks('portalSelected',{selectedPortalGuid:guid,event}));portals[guid]=marker;}
     if(!params.has('noDraw')){const drawnItems=L.featureGroup();drawnItems.addLayer(L.polygon([[35,135],[35.1,135.1],[35.2,135]]));drawnItems.addLayer(L.polygon([[35,135],[35.1,135.1],[35.3,135],[35.4,135.2]]));for(const line of [[[35,135],[35.1,135.1]],[[35.1,135.1],[35.22,135]],[[35.22,135],[35,135]]])drawnItems.addLayer(L.polyline(line));plugin.drawTools={drawnItems};}
-    </script><script src="/plugin.js${'${location.search}'}"></script></body></html>`;
+    </script><script src="/iitc-dialog.js"></script><script>setupDialogs();window.DIALOG_SLIDE_DURATION=0;const standardDialog=window.dialog;window.dialog=options=>{dialogCalls++;return standardDialog(options)};</script><script src="/plugin.js${'${location.search}'}"></script></body></html>`;
   server=http.createServer((req,res)=>{
     const url=new URL(req.url,'http://localhost');
     let body,type='application/javascript';
     if(url.pathname==='/leaflet.js')body=fs.readFileSync(require.resolve('leaflet/dist/leaflet.js'));
     else if(url.pathname==='/leaflet.css'){body=fs.readFileSync(require.resolve('leaflet/dist/leaflet.css'));type='text/css';}
+    else if(url.pathname==='/jquery.js')body=fs.readFileSync(require.resolve('jquery/dist/jquery.js'));
+    else if(url.pathname==='/jquery-ui.js')body=fs.readFileSync(require.resolve('jquery-ui-dist/jquery-ui.js'));
+    else if(url.pathname==='/jquery-ui.css'){body=fs.readFileSync(require.resolve('jquery-ui-dist/jquery-ui.css'));type='text/css';}
+    else if(url.pathname.startsWith('/images/')){body=fs.readFileSync(path.join(path.dirname(require.resolve('jquery-ui-dist/jquery-ui.js')),'images',path.basename(url.pathname)));type='image/png';}
+    else if(url.pathname==='/iitc-dialog.js')body=fs.readFileSync(path.join(__dirname,'fixtures/iitc-dialog.js'));
+    else if(url.pathname==='/iitc-dialog.css'){body=fs.readFileSync(path.join(__dirname,'fixtures/iitc-dialog.css'));type='text/css';}
+    else if(/^\/dialog_(redeem|artifact|cellscore|text)\.css$/.test(url.pathname)){body='';type='text/css';}
     else if(url.pathname==='/plugin.js')body=url.searchParams.has('mobile')?source.replace(mobileTail,'wrapper(info);'):source;
     else {body=html.replace('<script src="/plugin.js${location.search}"></script>','<script src="/plugin.js'+url.search+'"></script>');type='text/html;charset=utf-8';}
     res.writeHead(200,{'Content-Type':type});res.end(body);
@@ -52,7 +59,7 @@ async function pageFor(query='',viewport={width:1280,height:800}) {
     const data=request.postDataJSON(),result=v=>({mu:12345,area_km2:12.34,coordinates:v.map(p=>p.lat.toFixed(6)+', '+p.lng.toFixed(6))});
     return route.fulfill({json:data.fields?{model:'fixture-model',results:data.fields.map((f,index)=>({id:f.id,index,ok:true,...result(f.coordinates)}))}:{model:'fixture-model',...result(data.coordinates)}});
   });
-  await page.goto(origin+'/'+query);await page.getByText('MU Calculator',{exact:true}).click();
+  await page.goto(origin+'/'+query);await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();
   return {page,context};
 }
 async function click(page,text){await page.getByRole('button',{name:text,exact:true}).click();}
@@ -105,7 +112,10 @@ test('mobile: native wrapper transform, continuous touch selection, shared edge,
   assert(source.includes(mobileTail),'Mobile loader must recognize the exact standard IITC injection tail');
   const {page,context}=await pageFor('?mobile',{width:390,height:844});
   try {
-    assert.equal(await page.evaluate(()=>dialogCalls),0);
+    assert.equal(await page.evaluate(()=>dialogCalls),1);
+    assert.equal(await page.locator('.muc-dialog-mobile .ui-dialog-title').textContent(),'MU Calculator');
+    assert.equal(await page.locator('.muc-dialog-mobile .ui-dialog-titlebar-button-close').isVisible(),true);
+    assert.equal(await page.locator('.ui-widget-overlay').count(),0);
     await page.locator('.muc-panel select').selectOption('edge');await click(page,'選択開始');
     // Actual touchscreen taps on Leaflet portal markers, not hook-only calls.
     const sequence=['a','b','c','d','e','f','g'];
@@ -123,14 +133,41 @@ test('mobile: native wrapper transform, continuous touch selection, shared edge,
     }
     await expectText(page,'登録 5 CF');
     await click(page,'MU計算');await expectText(page,'合計推定 61,725 MU');
-    const bounds=await page.locator('.muc-panel').boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=390);
+    const bounds=await page.locator('.muc-dialog-mobile').boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=390);
     assert(await page.locator('.muc-scroll').evaluate(e=>e.scrollHeight>e.clientHeight));
     await page.screenshot({path:'test-results/mobile-portrait.png'});
     await page.setViewportSize({width:844,height:390});await page.evaluate(()=>map.invalidateSize());
     await page.screenshot({path:'test-results/mobile-landscape.png'});
-    const landscape=await page.locator('.muc-panel').boundingBox();assert(landscape.y>=0 && landscape.y+landscape.height<=390);
+    const landscape=await page.locator('.muc-dialog-mobile').boundingBox();assert(landscape.y>=0 && landscape.y+landscape.height<=390);
     await page.evaluate(()=>show('info'));assert.equal(await page.locator('.muc-panel').isVisible(),false);
     await page.evaluate(()=>show('map'));await page.locator('.muc-panel').waitFor({state:'visible'});
+    // Standard IITC titlebar controls remain available in both orientations.
+    await page.locator('.ui-dialog-titlebar-button-collapse').tap();
+    await page.locator('.muc-panel').waitFor({state:'hidden'});
+    assert.equal(await page.locator('.ui-dialog-titlebar-button-close').isVisible(),true);
+    await page.locator('.ui-dialog-titlebar-button-collapse').tap();
+    await page.locator('.muc-panel').waitFor({state:'visible'});
+    await click(page,'選択開始');
+    await page.locator('.ui-dialog-titlebar-button-close').tap();
+    await page.locator('.muc-dialog').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>DIALOG_COUNT),0);
+    // Closing ends portal selection while preserving the registered plan.
+    await page.evaluate(()=>{
+      portals.h=L.marker([36,136]);portals.h.options.data={title:'closed-panel portal'};
+      runHooks('portalSelected',{selectedPortalGuid:'h'});
+      show('info');
+    });
+    await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();
+    await expectText(page,'登録 5 CF');
+    assert.equal(await page.evaluate(()=>currentPane),'map');
+    assert.equal(await page.locator('.muc-dialog').count(),1);
+    assert.equal(await page.locator('.muc-status').textContent().then(text=>text.includes('選択中')),false);
+    await click(page,'JSON出力');
+    assert.equal(await page.evaluate(()=>JSON.parse(exports.at(-1).text).selection.length),7);
+    await page.evaluate(()=>show('info'));
+    await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();
+    assert.equal(await page.locator('.muc-dialog').count(),1);
+    assert.equal(await page.evaluate(()=>hooks.portalSelected.length),1);
     assert.deepEqual(page.errors,[]);
   } finally {await context.close();}
 });
@@ -139,7 +176,7 @@ test('persistence: reload restores results unverified, repeated setup guarded, m
   try {
     await click(page,'選択開始');await pick(page,['a','b','c']);await click(page,'MU計算');await expectText(page,'合計推定 12,345 MU');
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('iitc.muCalculator.v1')||'{}').fields?.[0]?.status==='success');
-    await page.reload();await page.getByText('MU Calculator',{exact:true}).click();await expectText(page,'モデル未確認');
+    await page.reload();await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();await expectText(page,'モデル未確認');
     await page.evaluate(()=>{bootPlugins.forEach(setup=>setup());map.panBy([50,50]);map.setZoom(12)});
     assert.equal(await page.evaluate(()=>hooks.portalSelected.length),1);assert.equal(await page.evaluate(()=>overlays[0].getLayers().filter(l=>l instanceof L.Polygon).length),1);
     await click(page,'MU計算');await expectText(page,'合計推定 12,345 MU');assert.deepEqual(page.errors,[]);

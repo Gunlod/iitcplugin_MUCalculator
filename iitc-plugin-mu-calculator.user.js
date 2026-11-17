@@ -2,7 +2,7 @@
 // @id             iitc-plugin-mu-calculator
 // @name           IITC plugin: MU Calculator
 // @category       Layer
-// @version        1.0.2
+// @version        1.0.3
 // @namespace      iitc.plugin.mu-calculator
 // @description    Estimate MU for portal selections and Draw Tools fields
 // @match          https://intel.ingress.com/*
@@ -553,7 +553,7 @@ function wrapper(plugin_info) {
   if (window.plugin.muCalculator) return;
   const p = window.plugin.muCalculator = {};
   const KEY = 'iitc.muCalculator.v1';
-  let store = new core.Store(), root, overlay, selectionLayer;
+  let store = new core.Store(), root, dialogHandle, overlay, selectionLayer;
   let selecting = false, job = null, preview = null, renderFrame = null, saveTimer = null;
   const layers = new Map();
   p.core = core;
@@ -807,8 +807,6 @@ function wrapper(plugin_info) {
     // 再描画前のスクロール位置を保持する。
     const scroll = root.querySelector('.muc-scroll'), scrollTop = scroll ? scroll.scrollTop : 0;
     root.replaceChildren();
-    const header = element('div',undefined,'muc-toolbar'); root.appendChild(header);
-    header.appendChild(element('strong','MU Calculator'));
     // 選択中だけ頂点数を状態欄へ加える。
     const status = element('div',(selecting ? '選択中 · '+store.selection.length+'頂点　' : '')+(p.progress || p.message || 'ポータル選択またはDraw Tools取り込みを開始してください。'),'muc-status');
     status.setAttribute('role','status'); status.setAttribute('aria-live','polite'); root.appendChild(status);
@@ -910,17 +908,19 @@ function wrapper(plugin_info) {
     body.appendChild(element('p','MUは外部APIによる推定値です。計算時に頂点座標を api.investigatexm.com に送信します。重なる面積は各CFで加算します。全CFの成立・リンク順序・既存リンクとの干渉は保証しません。Draw Toolsの図形は実在ポータルやリンク構築可能性を保証しません。','muc-notice'));
     body.scrollTop = scrollTop;
   }
-  /** 端末に応じた操作パネルを開く。既存パネルは再利用する。 */
+  /** 両端末でIITC標準のタイトルバー付きパネルを開く。既存パネルは再利用する。 */
   p.open = function () {
+    const isMobile = mobile();
+    // モバイルのToolboxが別画面にある場合も、パネルと地図を同時に表示する。
+    if (isMobile && typeof window.show === 'function') window.show('map');
     // 既に開いているパネルは再利用して更新する。
-    if (root && root.isConnected) { schedule(false); return; }
+    if (root && root.isConnected) { dialogHandle.dialog('moveToTop'); schedule(false); return; }
     root = element('section',undefined,'muc-panel'); root.id = 'mu-calculator-panel'; root.setAttribute('aria-label','MU Calculator');
-    // スマートフォンは下部パネル、PCは標準ダイアログで開く。
-    if (mobile()) { root.classList.add('muc-mobile'); document.body.appendChild(root); }
-    else {
-      window.dialog({id:'mu-calculator',title:'MU Calculator',html:root,width:460,modal:false,
-        closeCallback:() => { selecting = false; root = null; persist(); }});
-    }
+    // 閉じる・最小化はIITC標準の操作を使い、モバイルの配置だけCSSで調整する。
+    dialogHandle = window.dialog({id:'mu-calculator',title:'MU Calculator',html:root,width:460,modal:false,buttons:[],
+      classes:{'ui-dialog':isMobile ? 'muc-dialog muc-dialog-mobile' : 'muc-dialog'},
+      /** 標準の×で閉じたら選択を終了し、CFを保持して再表示できる状態へ戻す。 */
+      closeCallback:() => { selecting = false; root = null; dialogHandle = null; persist(); }});
     L.DomEvent.disableClickPropagation(root); L.DomEvent.disableScrollPropagation(root); render();
   };
   /** 保存データ・専用レイヤー・イベント・Toolboxを一度だけ初期化する。 */
@@ -934,8 +934,8 @@ function wrapper(plugin_info) {
     if (typeof window.addLayerGroup === 'function') window.addLayerGroup('MU Calculator',overlay,true);
     else { window.layerChooser.addOverlay(overlay,'MU Calculator'); overlay.addTo(window.map); }
     window.addHook('portalSelected',onSelected);
-    // ポータル詳細処理は維持し、他のモバイル画面ではパネルだけを隠す。
-    window.addHook('paneChanged',pane => { /* スマートフォンでは地図以外の画面でパネルを隠す。 */ if (root && mobile()) root.hidden = pane !== 'map'; /* 地図・情報以外へ移った場合は選択を終了する。 */ if (pane !== 'map' && pane !== 'info') { selecting = false; persist(); } });
+    // ポータル詳細処理は維持し、他のモバイル画面ではタイトルバーごと隠す。
+    window.addHook('paneChanged',pane => { /* 地図以外ではダイアログ全体を隠す。 */ if (dialogHandle && mobile()) dialogHandle.dialog('widget').prop('hidden',pane !== 'map'); /* 地図・情報以外へ移った場合は選択を終了する。 */ if (pane !== 'map' && pane !== 'info') { selecting = false; persist(); } });
     window.addEventListener('pagehide',() => {
       // ページ離脱時は実行中の通信を中断する。
       if (job) job.cancel(); selecting = false;
@@ -949,9 +949,12 @@ function wrapper(plugin_info) {
       .muc-toolbar strong{flex:1}.muc-status{padding:4px 8px;overflow-wrap:anywhere}.muc-scroll{max-height:60vh;max-height:60dvh;overflow:auto;overscroll-behavior:contain;padding:6px;-webkit-overflow-scrolling:touch}
       .muc-field{border:1px solid #45656c;border-left:5px solid;margin:8px 0;padding:8px;overflow-wrap:anywhere}.muc-panel p{margin:6px 0}.muc-total{font-size:17px;font-weight:bold}.muc-notice{font-size:12px;color:#d1dfe1}.muc-error{color:#ffb0aa}
       .muc-panel fieldset{margin:8px 0;border:1px solid #45656c}.muc-panel textarea{width:100%;min-height:120px}.muc-panel input[type=file]{max-width:100%}.muc-panel input[type=color]{width:44px;height:44px}.muc-portal{display:flex;align-items:center;justify-content:space-between;gap:8px;overflow-wrap:anywhere}.muc-portal span{min-width:0}
-      .muc-preview{border:1px solid #ffbd55;padding:8px}.muc-mobile{position:fixed;left:8px;right:8px;bottom:calc(40px + env(safe-area-inset-bottom,0px));z-index:1500;border:1px solid #67939b;border-radius:8px;box-shadow:0 4px 16px #0008;max-height:70vh;max-height:70dvh}
-      .muc-mobile .muc-scroll{max-height:calc(70vh - 155px);max-height:calc(70dvh - 155px)}.muc-mobile[hidden]{display:none}.muc-vertex{background:#102329;color:#fff;border:1px solid #fff;border-radius:3px;padding:1px 4px;white-space:nowrap;pointer-events:none}.muc-label{pointer-events:none}
-      @media(max-height:450px){.muc-mobile{bottom:32px;max-height:85vh;max-height:85dvh}.muc-mobile .muc-scroll{max-height:calc(85vh - 155px);max-height:calc(85dvh - 155px)}}
+      .muc-preview{border:1px solid #ffbd55;padding:8px}.muc-dialog-mobile{position:fixed!important;left:8px!important;right:8px;top:auto!important;bottom:calc(40px + env(safe-area-inset-bottom,0px))!important;width:calc(100% - 16px)!important;box-sizing:border-box;max-height:70vh;max-height:70dvh;display:flex!important;flex-direction:column}
+      .muc-dialog-mobile[hidden]{display:none!important}.muc-dialog-mobile>.ui-dialog-content{padding:0;min-height:0!important;overflow:hidden;flex:0 1 auto}.muc-dialog-mobile .muc-panel{display:flex;flex-direction:column;max-height:calc(70vh - 44px);max-height:calc(70dvh - 44px)}
+      .muc-dialog-mobile .muc-panel>.muc-toolbar,.muc-dialog-mobile .muc-status{flex-shrink:0}.muc-dialog-mobile .muc-scroll{min-height:0;max-height:none;flex:1 1 auto}.muc-dialog-mobile .ui-dialog-titlebar{min-height:36px;flex-shrink:0}.muc-dialog-mobile .ui-dialog-title{margin-right:74px;width:calc(100% - 82px)}
+      .muc-dialog-mobile .ui-dialog-titlebar-button{width:32px;height:32px;min-width:32px;min-height:32px;top:50%;margin-top:-16px}.muc-dialog-mobile .ui-dialog-titlebar-button-close{right:2px}.muc-dialog-mobile .ui-dialog-titlebar-button-collapse{right:36px}
+      .muc-vertex{background:#102329;color:#fff;border:1px solid #fff;border-radius:3px;padding:1px 4px;white-space:nowrap;pointer-events:none}.muc-label{pointer-events:none}
+      @media(max-height:450px){.muc-dialog-mobile{bottom:32px!important;max-height:85vh;max-height:85dvh}.muc-dialog-mobile .muc-panel{max-height:calc(85vh - 44px);max-height:calc(85dvh - 44px)}}
     `; document.head.appendChild(style);
     // 現行Toolbox APIが使える場合はボタンとして登録する。
     if (window.IITC && window.IITC.toolbox && window.IITC.toolbox.addButton) window.IITC.toolbox.addButton({id:'mu-calculator-toolbox',label:'MU Calculator',action:p.open});

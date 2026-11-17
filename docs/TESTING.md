@@ -1,6 +1,6 @@
 # 検証結果
 
-検証日：2026-11-17。Node.js v24.12.0、Windows上のChrome（headless）、Playwright 1.56.1、Leaflet 1.9.4を使用しました。
+最新の画面・ロジック検証日：2026-11-18。実APIの確認日：2026-11-17。Node.js v24.12.0、Windows上のChrome（headless）、Playwright 1.56.1、Leaflet 1.9.4、jQuery 3.7.1、jQuery UI 1.13.3を使用しました。
 
 | 実行 | 結果 |
 |---|---|
@@ -9,7 +9,7 @@
 | `npm run test:browser` | デスクトップ・モバイル画面の5統合テストに成功 |
 | `npm run test:api` | 実APIのhealth、単一CF、有効／無効混在bulk、CORSプリフライトに成功 |
 
-ブラウザテストでは実際のChromiumエンジン・Leaflet・DOM・localStorage・FileReaderを使用します。IITCのポータルとhook、Toolbox、ダイアログ、ネイティブ保存ブリッジ、通常テストのAPI応答はフィクスチャです。Androidでは公式ローダーと同じ末尾置換を行ったUserscriptを実行し、タッチスクリーンイベントを発生させています。
+ブラウザテストでは実際のChromiumエンジン・Leaflet・DOM・localStorage・FileReader・jQuery UIと、[公式IITCのダイアログ処理](../tests/fixtures/README.md)を使用します。IITCのポータルとhook、Toolbox、テーマ、ネイティブ保存ブリッジ、通常テストのAPI応答はフィクスチャです。Androidでは公式ローダーと同じ末尾置換を行ったUserscriptを実行し、タッチスクリーンイベントを発生させています。
 
 これは認証済みIntel MapやAndroidアプリそのもののテストではありません。画面キャプチャは `test-results/desktop.png`、`mobile-portrait.png`、`mobile-landscape.png` に出力し、目視でも確認しました。
 
@@ -45,7 +45,7 @@
 | 24 | Androidタッチ選択 | Chromiumのタッチエミュレーションで成功。Android WebView実機は未検証 |
 | 25 | Android連続選択 | Chromiumのタッチエミュレーションで7ポータルを連続選択。Android実機は未検証 |
 | 26 | 縦画面・横画面 | 自動＋画像確認：390×844／844×390で横幅・パネル境界・スクロール。実機回転は未検証 |
-| 27 | パネル表示中の地図操作 | 自動：パネル外の実タッチとCF描画越しの選択に成功。IITC標準ダイアログ本体はフィクスチャ、実運用は未検証 |
+| 27 | パネル表示中の地図操作 | 自動：公式IITCの非モーダルダイアログを開き、パネル外のタッチとCF描画越しの選択に成功。スマホの標準タイトルバー・最小化・×での終了・CFを保持した再表示・重複防止も確認。実運用は未検証 |
 | 28 | 再読み込み後の復元 | 自動：localStorage・CF・計算参考値・モデル再確認。削除後のCF番号・強調状態も保持 |
 | 29 | 地図移動・ズーム後の描画 | 自動：実Leafletのpan／zoom後もPolygonを保持 |
 | 30 | PCとAndroidが同じファイル | 自動：標準注入／Androidと同じ末尾置換の両経路で同じソースを実行。Android実機インストールは未検証 |
