@@ -6,12 +6,14 @@
 |---|---|
 | `npm run check` | Userscriptの構文検証に成功 |
 | `npm test` | ロジック・通信アダプターの32テストに成功 |
-| `npm run test:browser` | デスクトップ・モバイル画面の5統合テストに成功 |
+| `npm run test:browser` | デスクトップ・モバイル画面の6統合テストに成功 |
 | `npm run test:api` | 実APIのhealth、単一CF、有効／無効混在bulk、CORSプリフライトに成功 |
 
 ブラウザテストでは実際のChromiumエンジン・Leaflet・DOM・localStorage・FileReader・jQuery UIと、[公式IITCのダイアログ処理](../tests/fixtures/README.md)を使用します。IITCのポータルとhook、Toolbox、テーマ、ネイティブ保存ブリッジ、通常テストのAPI応答はフィクスチャです。Androidでは公式ローダーと同じ末尾置換を行ったUserscriptを実行し、タッチスクリーンイベントを発生させています。
 
-これは認証済みIntel MapやAndroidアプリそのもののテストではありません。画面キャプチャは `test-results/desktop.png`、`mobile-portrait.png`、`mobile-landscape.png` に出力し、目視でも確認しました。
+これは認証済みIntel MapやAndroidアプリそのもののテストではありません。画面キャプチャは `test-results/desktop.png`、`mobile-portrait.png`、`mobile-landscape.png`、`mobile-standard-dialog.png` に出力します。
+
+v1.0.6では、MoreFieldsと同じ4項目（html・id・title・width）だけを標準のdialogへ渡し、widthがautoであることを確認しています。独自のタイトルバー操作要素やモバイル配置クラスが生成されないこと、標準ボタンで最小化・復元・終了できること、終了後もCFを保持して開き直せることを検証しています。IITCのダイアログ登録件数は開いている間が1、閉じた後が0です。独自のモーダル解除・位置補正は削除したため、それらを前提にした旧版の互換テストは現在の仕様には含みません。
 
 ## 依頼の30項目との対応
 
@@ -44,8 +46,8 @@
 | 23 | PCポータル選択 | 自動：hookから登録・描画。認証済みIntel Map、各ユーザースクリプトマネージャーは未検証 |
 | 24 | Androidタッチ選択 | Chromiumのタッチエミュレーションで成功。Android WebView実機は未検証 |
 | 25 | Android連続選択 | Chromiumのタッチエミュレーションで7ポータルを連続選択。Android実機は未検証 |
-| 26 | 縦画面・横画面 | 自動＋画像確認：390×844／844×390で横幅・パネル境界・スクロール。実機回転は未検証 |
-| 27 | パネル表示中の地図操作 | 自動：公式IITCの非モーダルダイアログを開き、パネル外のタッチとCF描画越しの選択に成功。スマホの標準タイトルバー・最小化・×での終了・CFを保持した再表示・重複防止も確認。実運用は未検証 |
+| 26 | 縦画面・横画面 | 自動：390×844／844×390で標準タイトルバーの操作・スクロールを確認。配置自体はIITC標準に従う。実機回転は未検証 |
+| 27 | パネル表示中の地図操作 | 自動：公式IITCの標準ダイアログを開き、パネル外のタッチとCF描画越しの選択に成功。標準の最小化・×での終了・CFを保持した再表示・重複防止も確認。実運用は未検証 |
 | 28 | 再読み込み後の復元 | 自動：localStorage・CF・計算参考値・モデル再確認。削除後のCF番号・強調状態も保持 |
 | 29 | 地図移動・ズーム後の描画 | 自動：実Leafletのpan／zoom後もPolygonを保持 |
 | 30 | PCとAndroidが同じファイル | 自動：標準注入／Androidと同じ末尾置換の両経路で同じソースを実行。Android実機インストールは未検証 |

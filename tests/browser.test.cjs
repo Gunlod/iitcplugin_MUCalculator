@@ -12,7 +12,7 @@ const mobileTail = "script.appendChild(document.createTextNode('('+ wrapper +')(
 let server,browser,origin;
 before(async()=>{
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/leaflet.css"><link rel="stylesheet" href="/jquery-ui.css"><link rel="stylesheet" href="/iitc-dialog.css"><style>
-    :root{--color-bg-trans:#102329;--color-bg-border:#20a8b1;--color-primary:#ffc400;--color-secondary:#fff}body{margin:0;background:#071b23;color:white;font-family:sans-serif}#map{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,#ffffff08 40px),repeating-linear-gradient(90deg,#15323b,#15323b 39px,#ffffff10 40px)}#toolbox_component{position:absolute;right:8px;top:8px;z-index:1000;background:#102329;padding:12px}a{color:#ffc36b;cursor:pointer}.ui-dialog .ui-dialog-titlebar{background:#073f4b;border:0;border-radius:0}.ui-dialog-titlebar-button .ui-icon,.ui-dialog-titlebar-button .ui-button-icon-space{display:none}.leaflet-container{font-family:sans-serif}
+    :root{--color-bg-trans:#102329;--color-bg-border:#20a8b1;--color-primary:#ffc400;--color-secondary:#fff}body{margin:0;background:#071b23;color:white;font-family:sans-serif}#map{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,#ffffff08 40px),repeating-linear-gradient(90deg,#15323b,#15323b 39px,#ffffff10 40px)}#toolbox_component{position:absolute;right:8px;top:8px;z-index:1000;background:#102329;padding:12px}a{color:#ffc36b;cursor:pointer}.ui-dialog .ui-dialog-titlebar{background:#073f4b;border:0;border-radius:0}.ui-dialog-titlebar-button .ui-icon,.ui-dialog-titlebar-button .ui-button-icon-space{display:none}.ui-dialog .ui-dialog-titlebar-button{width:17px;height:17px;top:3px;margin:0}.ui-dialog .ui-dialog-titlebar-button-collapse{right:25px}.leaflet-container{font-family:sans-serif}
     </style></head><body><div id="map"></div><div id="toolbox_component"></div><div id="toolbox"></div><script src="/leaflet.js"></script><script src="/jquery.js"></script><script src="/jquery-ui.js"></script><script>
     const params=new URLSearchParams(location.search), isMobile=params.has('mobile');
     window.hooks={};window.addHook=(name,fn)=>(hooks[name] ||= []).push(fn);window.runHooks=(name,data)=>(hooks[name]||[]).forEach(fn=>fn(data));
@@ -26,7 +26,7 @@ before(async()=>{
     const points=[['a',35,135,'ポータル A'],['b',35.1,135.1,'ポータル B'],['c',35.2,135,'<img src=x onerror=alert(1)>'],['d',35.22,135,'ポータル D'],['e',35.24,135,'ポータル E'],['f',35.26,135,'ポータル F'],['g',35.28,135,'ポータル G']];
     for(const [guid,lat,lng,title] of points){const marker=L.circleMarker([lat,lng],{radius:8,color:'#bdf',fillOpacity:1}).addTo(map);marker.options.data={title};marker.on('click',event=>runHooks('portalSelected',{selectedPortalGuid:guid,event}));portals[guid]=marker;}
     if(!params.has('noDraw')){const drawnItems=L.featureGroup();drawnItems.addLayer(L.polygon([[35,135],[35.1,135.1],[35.2,135]]));drawnItems.addLayer(L.polygon([[35,135],[35.1,135.1],[35.3,135],[35.4,135.2]]));for(const line of [[[35,135],[35.1,135.1]],[[35.1,135.1],[35.22,135]],[[35.22,135],[35,135]]])drawnItems.addLayer(L.polyline(line));plugin.drawTools={drawnItems};}
-    </script><script src="/iitc-dialog.js"></script><script>setupDialogs();window.DIALOG_SLIDE_DURATION=0;const standardDialog=window.dialog;window.dialog=options=>{dialogCalls++;return standardDialog(options)};</script><script src="/plugin.js${'${location.search}'}"></script></body></html>`;
+    </script><script src="/iitc-dialog.js"></script><script>setupDialogs();window.DIALOG_SLIDE_DURATION=0;const standardDialog=window.dialog;window.dialog=options=>{dialogCalls++;window.lastDialogArgs={keys:Object.keys(options).sort(),id:options.id,width:options.width};return standardDialog(options)};</script><script src="/plugin.js${'${location.search}'}"></script></body></html>`;
   server=http.createServer((req,res)=>{
     const url=new URL(req.url,'http://localhost');
     let body,type='application/javascript';
@@ -65,6 +65,17 @@ async function pageFor(query='',viewport={width:1280,height:800}) {
 async function click(page,text){await page.getByRole('button',{name:text,exact:true}).click();}
 async function pick(page,guids){for(const guid of guids)await page.evaluate(guid=>portals[guid].fire('click'),guid);}
 async function expectText(page,text){await page.getByText(text,{exact:false}).first().waitFor();}
+async function expectTitlebarControls(page) {
+  const inside=await page.evaluate(()=>{
+    const titlebar=document.querySelector('.ui-dialog:has(#mu-calculator-panel)>.ui-dialog-titlebar');
+    const bounds=titlebar.getBoundingClientRect();
+    return [...titlebar.querySelectorAll('.ui-dialog-titlebar-button')].map(button=>{
+      const rect=button.getBoundingClientRect();
+      return rect.width>0 && rect.height>0 && rect.left>=bounds.left-1 && rect.right<=bounds.right+1 && rect.top>=bounds.top-1 && rect.bottom<=bounds.bottom+1;
+    });
+  });
+  assert.deepEqual(inside,[true,true],'Both controls must stay within the titlebar');
+}
 
 test('desktop: single field, XSS, API, hide/highlight/color, delete and clear',async()=>{
   const {page,context}=await pageFor();
@@ -113,17 +124,19 @@ test('mobile: native wrapper transform, continuous touch selection, shared edge,
   const {page,context}=await pageFor('?mobile',{width:390,height:844});
   try {
     assert.equal(await page.evaluate(()=>dialogCalls),1);
-    assert.equal(await page.locator('.muc-dialog-mobile .ui-dialog-title').textContent(),'MU Calculator');
-    assert.equal(await page.locator('.muc-dialog-mobile .ui-dialog-titlebar-button-close').isVisible(),true);
+    assert.equal(await page.locator('.ui-dialog-title').textContent(),'MU Calculator');
+    assert.equal(await page.locator('.ui-dialog-titlebar-button-close').isVisible(),true);
     assert.equal(await page.locator('.ui-widget-overlay').count(),0);
     await page.locator('.muc-panel select').selectOption('edge');await click(page,'選択開始');
     // Actual touchscreen taps on Leaflet portal markers, not hook-only calls.
     const sequence=['a','b','c','d','e','f','g'];
     for(const guid of sequence) {
       const position=await page.evaluate(guid=>{
-        // Pan each target into the map area above the always-visible panel.
+        // Pan each target into the map area above the standard dialog.
+        const bounds=document.querySelector('.ui-dialog').getBoundingClientRect();
+        const y=Math.max(12,bounds.top/2);
         map.panTo(portals[guid].getLatLng(),{animate:false});
-        map.panBy([0,map.getSize().y/2-120],{animate:false});
+        map.panBy([0,map.getSize().y/2-y],{animate:false});
         const pt=map.latLngToContainerPoint(portals[guid].getLatLng());return {x:pt.x,y:pt.y};
       },guid);
       await page.touchscreen.tap(position.x,position.y);
@@ -133,14 +146,12 @@ test('mobile: native wrapper transform, continuous touch selection, shared edge,
     }
     await expectText(page,'登録 5 CF');
     await click(page,'MU計算');await expectText(page,'合計推定 61,725 MU');
-    const bounds=await page.locator('.muc-dialog-mobile').boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=390);
+    const bounds=await page.locator('.ui-dialog').boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=390);
     assert(await page.locator('.muc-scroll').evaluate(e=>e.scrollHeight>e.clientHeight));
     await page.screenshot({path:'test-results/mobile-portrait.png'});
     await page.setViewportSize({width:844,height:390});await page.evaluate(()=>map.invalidateSize());
     await page.screenshot({path:'test-results/mobile-landscape.png'});
-    const landscape=await page.locator('.muc-dialog-mobile').boundingBox();assert(landscape.y>=0 && landscape.y+landscape.height<=390);
-    await page.evaluate(()=>show('info'));assert.equal(await page.locator('.muc-panel').isVisible(),false);
-    await page.evaluate(()=>show('map'));await page.locator('.muc-panel').waitFor({state:'visible'});
+    await expectTitlebarControls(page);
     // Standard IITC titlebar controls remain available in both orientations.
     await page.locator('.ui-dialog-titlebar-button-collapse').tap();
     await page.locator('.muc-panel').waitFor({state:'hidden'});
@@ -149,7 +160,7 @@ test('mobile: native wrapper transform, continuous touch selection, shared edge,
     await page.locator('.muc-panel').waitFor({state:'visible'});
     await click(page,'選択開始');
     await page.locator('.ui-dialog-titlebar-button-close').tap();
-    await page.locator('.muc-dialog').waitFor({state:'detached'});
+    await page.locator('.ui-dialog').waitFor({state:'detached'});
     assert.equal(await page.evaluate(()=>DIALOG_COUNT),0);
     // Closing ends portal selection while preserving the registered plan.
     await page.evaluate(()=>{
@@ -159,14 +170,13 @@ test('mobile: native wrapper transform, continuous touch selection, shared edge,
     });
     await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();
     await expectText(page,'登録 5 CF');
-    assert.equal(await page.evaluate(()=>currentPane),'map');
-    assert.equal(await page.locator('.muc-dialog').count(),1);
+    assert.equal(await page.locator('.ui-dialog').count(),1);
     assert.equal(await page.locator('.muc-status').textContent().then(text=>text.includes('選択中')),false);
     await click(page,'JSON出力');
     assert.equal(await page.evaluate(()=>JSON.parse(exports.at(-1).text).selection.length),7);
     await page.evaluate(()=>show('info'));
     await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();
-    assert.equal(await page.locator('.muc-dialog').count(),1);
+    assert.equal(await page.locator('.ui-dialog').count(),1);
     assert.equal(await page.evaluate(()=>hooks.portalSelected.length),1);
     assert.deepEqual(page.errors,[]);
   } finally {await context.close();}
@@ -180,6 +190,30 @@ test('persistence: reload restores results unverified, repeated setup guarded, m
     await page.evaluate(()=>{bootPlugins.forEach(setup=>setup());map.panBy([50,50]);map.setZoom(12)});
     assert.equal(await page.evaluate(()=>hooks.portalSelected.length),1);assert.equal(await page.evaluate(()=>overlays[0].getLayers().filter(l=>l instanceof L.Polygon).length),1);
     await click(page,'MU計算');await expectText(page,'合計推定 12,345 MU');assert.deepEqual(page.errors,[]);
+  } finally {await context.close();}
+});
+test('standard dialog: MoreFields options, native titlebar controls, close and reopen',async()=>{
+  const {page,context}=await pageFor('?mobile',{width:390,height:844});
+  try {
+    assert.deepEqual(await page.evaluate(()=>lastDialogArgs),{keys:['html','id','title','width'],id:'plugin-mucal',width:'auto'});
+    assert.equal(await page.locator('[class*=muc-titlebar],.muc-dialog-mobile').count(),0);
+    await expectTitlebarControls(page);
+    await click(page,'両方');await expectText(page,'追加可能 2 CF');
+    await click(page,'確認して登録');await expectText(page,'登録 2 CF');
+    await page.locator('.ui-dialog-titlebar-button-collapse').tap();
+    await page.locator('.muc-panel').waitFor({state:'hidden'});
+    await expectTitlebarControls(page);
+    await page.locator('.ui-dialog-titlebar-button-collapse').tap();
+    await page.locator('.muc-panel').waitFor({state:'visible'});
+    await expectTitlebarControls(page);
+    await page.screenshot({path:'test-results/mobile-standard-dialog.png'});
+    await page.locator('.ui-dialog-titlebar-button-close').tap();
+    await page.locator('.ui-dialog').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>DIALOG_COUNT),0);
+    await page.locator('#toolbox_component').getByText('MU Calculator',{exact:true}).click();
+    await expectText(page,'登録 2 CF');
+    assert.equal(await page.locator('.ui-dialog').count(),1);
+    assert.deepEqual(page.errors,[]);
   } finally {await context.close();}
 });
 test('Draw Tools absent: disabled import only; JSON file import works',async()=>{

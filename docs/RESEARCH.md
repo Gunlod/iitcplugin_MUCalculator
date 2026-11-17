@@ -11,7 +11,7 @@ IITC-CEのGitHub `master` を調査しました。取得したツリーのコミ
 | [IITC_PluginManager.java](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/mobile/app/src/main/java/org/exarhteam/iitc_mobile/IITC_PluginManager.java) | ユーザープラグイン・開発用 `.user.js` のメタデータ読込を確認 |
 | [portal_display.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/portal_display.js) | portalSelectedは `selectedPortalGuid` を渡す。window.portalsのmarkerから座標・options.data.titleを読む。既存の選択処理を置き換えない |
 | [draw-tools.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/plugins/draw-tools.js) | Draw Tools 0.13.0。`plugin.drawTools.drawnItems` はFeatureGroup。eachLayer、Leafletの型とgetLatLngsでスナップショットを作る。serializeLayerの型判定も確認。save・import・clearLayersには触れない |
-| [dialog.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/dialog.js) | 標準window.dialogはDOMのhtml、id、width、modal、classes、closeCallbackを受ける。冒頭注釈にはモバイルでmodalがtrueになるとあるが、関数本体の既定値はfalse。v1.0.3から両端末で標準ダイアログを使用し、タイトルバー・最小化・×を共通化。Androidの下部配置は専用クラスで調整 |
+| [dialog.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/dialog.js) | 標準window.dialogはDOMのhtml、id、widthなどを受ける。v1.0.6ではMoreFieldsと同じhtml・id・title・widthだけを指定し、タイトルバー・最小化・閉じる・配置を標準処理へ任せる |
 | [panes.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/panes.js) / [smartphone.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/smartphone.js) | `window.show('map')` と `paneChanged` を確認。ポータル選択ごとの画面切替を行わない |
 | [toolbox.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/toolbox.js) | `IITC.toolbox.addButton({id,label,action})` を優先し、旧ToolboxへのDOM追加をフォールバックとして用意 |
 | [utils_file.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/58ba3a7a39d6aee1efc2352965ce25054adce47f/core/code/utils_file.js) | `IITC.utils.exportFile(data,filename,dataType)` はAndroidでは `app.saveFile(filename,dataType,data)` に渡す。ファイル選択はFileReaderに対応 |
@@ -34,3 +34,11 @@ IITC-CEのGitHub `master` を調査しました。取得したツリーのコミ
 - Intel Map Originに対するOPTIONS応答の `Access-Control-Allow-Origin: *` を確認
 
 モデル名・計算値はこの調査時点の観測値です。実装には固定のモデル名・MU値を埋め込んでいません。
+
+## モバイルのタイトルバー互換処理（2026-11-18）
+
+利用者が実機で表示できている参考プラグイン `MoreFields.user.js`（More Fields v3）を確認しました。553行目付近の `dialog({html,id,title,width})` は、モーダル指定やタイトルバーのクラス置き換えを行っていません。v1.0.6では同じ4項目だけを指定し、idをplugin-mucal、widthをautoにしています。独自のボタン・配置クラス・位置指定CSSは削除しました。参考ファイルは読み取りのみで、変更・実行・同梱していません。
+
+公式の [v0.43.3のdialog.js](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/v0.43.3/core/code/dialog.js) と [dialogs.css](https://github.com/IITC-CE/ingress-intel-total-conversion/blob/v0.43.3/core/styles/dialogs.css) も追加確認しました。モーダル時には最小化を作らず、`ui-dialog-modal` の×をCSSで隠す条件があります。現在はこの動作もIITC標準に従い、モーダル状態やコールバックを上書きしません。
+
+標準のdialogcloseイベントには選択終了と保存処理だけを連動させます。実機での表示結果は未検証です。
