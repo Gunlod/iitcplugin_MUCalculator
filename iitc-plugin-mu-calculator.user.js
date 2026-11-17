@@ -2,7 +2,7 @@
 // @id             iitc-plugin-mu-calculator
 // @name           IITC plugin: MU Calculator
 // @category       Layer
-// @version        1.0.1
+// @version        1.0.2
 // @namespace      iitc.plugin.mu-calculator
 // @description    Estimate MU for portal selections and Draw Tools fields
 // @match          https://intel.ingress.com/*
@@ -181,6 +181,8 @@ function wrapper(plugin_info) {
         // 対象CFがあれば関連索引も取り除く。
         if (f) { this.byKey.delete(f.key); this.byGuid.delete(f.vertices.map(v => v.guid).sort().join('|')); }
         this.fields = this.fields.filter(f => f.id !== id); /* 削除したCFの強調状態を解除する。 */ if (this.highlight === id) this.highlight = '';
+        // 全CFを削除した後の新規登録はCF1から再開する。
+        if (!this.fields.length) this.nextId = 1;
       }
       /** 登録CF・選択頂点・キャッシュ・索引を全て初期化する。 */
       clear() { this.fields = []; this.selection = []; this.cache = Object.create(null); this.highlight = ''; this.nextId = 1; this.byKey.clear(); this.byGuid.clear(); }
@@ -655,12 +657,13 @@ function wrapper(plugin_info) {
   function draw() {
     // レイヤー初期化前の描画を避ける。
     if (!overlay) return;
-    const ids = new Set(store.fields.map(f => f.id));
+    const keys = new Set(store.fields.map(f => f.key));
     // 保持しているレイヤーから不要なものを取り除く。
-    for (const [id,layer] of layers) /* 削除済みCFの地図レイヤーも取り除く。 */ if (!ids.has(id)) { overlay.removeLayer(layer); layers.delete(id); }
+    for (const [key,layer] of layers) /* 削除済みCFの地図レイヤーも取り除く。 */ if (!keys.has(key)) { overlay.removeLayer(layer); layers.delete(key); }
     // 各CFの形状を再利用し、色・強調・表示状態を反映する。
     for (const f of store.fields) {
-      let layer = layers.get(f.id);
+      // 再利用されるCF番号ではなく座標キーで図形を対応付ける。
+      let layer = layers.get(f.key);
       // 既存レイヤーがないCFだけ新しく描画する。
       if (!layer) {
         const coords = f.vertices.map(v => [v.lat,v.lng]);
@@ -668,7 +671,7 @@ function wrapper(plugin_info) {
         layer = (typeof L.geodesicPolygon === 'function' ? L.geodesicPolygon(coords) : L.polygon(coords));
         // CFの塗りを通してポータルをタップできるようにする。
         layer.options.interactive = false; layer.options.clickable = false;
-        layers.set(f.id,layer);
+        layers.set(f.key,layer);
       }
       const selected = store.highlight === f.id;
       // 強調中のCFは線と塗りを目立たせる。

@@ -69,6 +69,21 @@ test('CF removal and clear also remove cache, selection and highlight',() => {
   const s = storeOf(2); s.remove('CF1'); assert.deepEqual(s.fields.map(f=>f.id),['CF2']);
   s.selection=[A];s.highlight='CF2';s.cache.test={};s.clear(); assert.equal(s.fields.length,0);assert.equal(s.selection.length,0);assert.equal(Object.keys(s.cache).length,0);assert.equal(s.highlight,'');
 });
+test('deleting every CF restarts numbering and calculates the replacement field',async () => {
+  const s=storeOf(2);
+  await C.calculate(s,C.token(),transport());
+  s.remove('CF1');s.remove('CF2');
+  for (const lat of [36,37]) {
+    const replacement=s.add([A,B,{lat,lng:135}]);
+    assert.equal(replacement.id,'CF1');
+    const log=[];await C.calculate(s,C.token(),transport(log));
+    assert.deepEqual(log.map(r=>r.path),['/health','/getMU']);
+    assert.equal(JSON.parse(log[1].body).coordinates[2].lat,lat);
+    assert.equal(s.summary().success,1);
+    assert.equal(s.fields[0].result.coordinates[2],`${lat.toFixed(6)}, 135.000000`);
+    s.remove(replacement.id);
+  }
+});
 test('versioned storage roundtrip restores settings and marks results unverified',async () => {
   const s = storeOf(1); s.mode='edge';s.selection=[A,B,D];s.fields[0].visible=false;
   await C.calculate(s,C.token(),transport());

@@ -1,6 +1,6 @@
 {
   "name": "iitc-mu-calculator",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "One IITC userscript for desktop and Android MU estimation",
   "scripts": {

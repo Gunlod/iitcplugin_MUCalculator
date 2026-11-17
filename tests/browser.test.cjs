@@ -74,6 +74,16 @@ test('desktop: single field, XSS, API, hide/highlight/color, delete and clear',a
     await click(page,'JSON出力');const data=await page.evaluate(()=>JSON.parse(exports.at(-1).text));assert.equal(data.fields.length,1);assert.equal(data.fields[0].result.mu,12345);
     await click(page,'CSV出力');assert.equal((await page.evaluate(()=>exports.at(-1).text)).charCodeAt(0),0xfeff);
     await click(page,'CF削除');await expectText(page,'登録 0 CF');
+    await click(page,'選択開始');await pick(page,['d','a','b']);
+    await click(page,'MU計算');await expectText(page,'合計推定 12,345 MU');
+    await click(page,'JSON出力');
+    const replacement=await page.evaluate(()=>JSON.parse(exports.at(-1).text));
+    assert.equal(replacement.fields[0].id,'CF1');
+    assert.equal(replacement.fields[0].vertices[0].guid,'d');
+    await page.waitForFunction(()=>{
+      const polygon=overlays[0].getLayers().find(l=>l instanceof L.Polygon);
+      return polygon && polygon.getLatLngs()[0].some(p=>p.lat===35.22) && !polygon.getLatLngs()[0].some(p=>p.lat===35.2);
+    });
     page.once('dialog',dialog=>dialog.accept());await click(page,'全クリア');
     assert.deepEqual(page.errors,[]);
   } finally {await context.close();}
